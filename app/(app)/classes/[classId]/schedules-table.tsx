@@ -7,7 +7,10 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from "./ui/table";
+} from "@/components/ui/table";
+import { schedules } from "@/db/schema";
+import { useSchedules } from "@/features/schedules/context/schedules-context";
+import { InferSelectModel } from "drizzle-orm";
 
 const timeSlots = [
   { start: "07:00", end: "07:45" },
@@ -16,11 +19,13 @@ const timeSlots = [
   { start: "09:00", end: "09:45" },
   { start: "09:45", end: "10:30" },
   { start: "10:30", end: "11:15" },
+  { start: "11:15", end: "13:30" },
   { start: "13:30", end: "14:15" },
   { start: "14:15", end: "15:00" },
   { start: "15:00", end: "15:30" },
   { start: "15:30", end: "16:15" },
   { start: "16:15", end: "17:00" },
+  { start: "17:00", end: "17:45" },
 ];
 
 const daysOfWeek = [
@@ -62,41 +67,50 @@ const subjectColors: { [key: string]: string } = {
   Default: "bg-gray-500 dark:bg-gray-700 text-gray-900 dark:text-gray-100",
 };
 
-export const CustomSchedule = ({
+export const SchedulesTable = ({
   data,
 }: {
-  data: {
-    title: string;
-    startTime: string;
-    endTime: string;
-    dayOfWeek: string;
-    sub?: string;
-  }[];
+  data: (InferSelectModel<typeof schedules> & {
+    subject: string;
+    teacher: string;
+    room: string;
+  })[];
 }) => {
+  // Helper function to compare times
+  const timeToMinutes = (time: string) => {
+    const [hours, minutes] = time.split(":").map(Number);
+    return hours * 60 + minutes;
+  };
+
+  // Check if an event overlaps with a slot
   const getEventForSlot = (
     slot: { start: string; end: string },
     day: string
   ) => {
     return data.filter((event) => {
-      const eventStartTime = event.startTime;
-      const eventEndTime = event.endTime;
+      const eventStart = timeToMinutes(event.startTime);
+      const eventEnd = timeToMinutes(event.endTime);
+      const slotStart = timeToMinutes(slot.start);
+      const slotEnd = timeToMinutes(slot.end);
       const eventDay = event.dayOfWeek.toLowerCase();
 
+      // Check if the event overlaps with the slot on the same day
       return (
         eventDay === day.toLowerCase() &&
-        eventStartTime >= slot.start &&
-        eventEndTime <= slot.end
+        eventStart < slotEnd && // Event starts before slot ends
+        eventEnd > slotStart // Event ends after slot starts
       );
     });
   };
 
-  // Hàm lấy màu sắc dựa trên tiêu đề môn học
   const getSubjectColor = (title: string) => {
     return subjectColors[title] || subjectColors.Default;
   };
 
+  const { setOpen, setCurrentRow } = useSchedules();
+
   return (
-    <div className="overflow-hidden rounded-lg border">
+    <div className="schedule-table overflow-hidden rounded-lg border">
       <Table>
         <TableHeader className="bg-muted sticky top-0 z-10">
           <TableRow>
@@ -114,21 +128,26 @@ export const CustomSchedule = ({
               <TableCell className="font-medium">{`${slot.start}`}</TableCell>
               {daysOfWeek.map((day, dayIndex) => {
                 const events = getEventForSlot(slot, day);
+
                 return (
                   <TableCell key={dayIndex} className="align-top text-center">
                     {events.map((event) => (
                       <div
-                        key={event.title}
-                        className={`p-2 rounded-md border mb-2 ${getSubjectColor(
-                          event.title
+                        key={event.id}
+                        className={`relative p-2 rounded-md border mb-2 ${getSubjectColor(
+                          event.subject
                         )}`}
+                        onClick={() => {
+                          setCurrentRow(event);
+                          setOpen("update");
+                        }}
                       >
                         <div className="text-xs text-muted-foreground">
                           {event.startTime} - {event.endTime}
                         </div>
-                        <div>{event.title}</div>
+                        <div>{event.subject}</div>
                         <div className="text-xs text-muted-foreground">
-                          {event.sub}
+                          {event.teacher}
                         </div>
                       </div>
                     ))}

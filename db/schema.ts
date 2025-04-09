@@ -43,8 +43,10 @@ export const students = pgTable("students", {
   lastName: varchar("last_name", { length: 100 }).notNull(),
   dateOfBirth: date("date_of_birth").notNull(),
   gender: gendersEnum("gender").notNull(),
-  address: text("address"),
-  classId: integer("class_id").references(() => classes.id),
+  address: text("address").notNull(),
+  classId: integer("class_id")
+    .references(() => classes.id)
+    .notNull(),
   schoolYearId: integer("school_year_id")
     .references(() => schoolYears.id)
     .notNull(),
@@ -83,7 +85,7 @@ export const classes = pgTable(
       .notNull(),
     capacity: integer("capacity").default(30).notNull(),
   },
-  (t) => [unique("classUnique").on(t.name, t.schoolYearId)]
+  (t) => [unique("class_unique").on(t.name, t.schoolYearId)]
 );
 
 export const classrooms = pgTable("classrooms", {
@@ -95,28 +97,39 @@ export const classrooms = pgTable("classrooms", {
   hasProjector: boolean("has_projector").default(false).notNull(),
 });
 
-export const schedules = pgTable("schedules", {
-  id: serial("id").primaryKey(),
-  classId: integer("class_id")
-    .references(() => classes.id)
-    .notNull(),
-  subjectId: integer("subject_id")
-    .references(() => subjects.id)
-    .notNull(),
-  teacherId: integer("teacher_id")
-    .references(() => teachers.id)
-    .notNull(),
-  classroomId: integer("classroom_id")
-    .references(() => classrooms.id)
-    .notNull(),
-  schoolYearId: integer("school_year_id")
-    .references(() => schoolYears.id)
-    .notNull(),
-  dayOfWeek: daysEnum("day_of_week").notNull(),
-  startTime: varchar("start_time", { length: 5 }).notNull(), // Ví dụ: "07:30"
-  endTime: varchar("end_time", { length: 5 }).notNull(), // Ví dụ: "08:15"
-  isActive: boolean("is_active").default(true),
-});
+export const schedules = pgTable(
+  "schedules",
+  {
+    id: serial("id").primaryKey(),
+    classId: integer("class_id")
+      .references(() => classes.id)
+      .notNull(),
+    subjectId: integer("subject_id")
+      .references(() => subjects.id)
+      .notNull(),
+    teacherId: integer("teacher_id")
+      .references(() => teachers.id)
+      .notNull(),
+    classroomId: integer("classroom_id")
+      .references(() => classrooms.id)
+      .notNull(),
+    schoolYearId: integer("school_year_id")
+      .references(() => schoolYears.id)
+      .notNull(),
+    dayOfWeek: daysEnum("day_of_week").notNull(),
+    startTime: varchar("start_time", { length: 5 }).notNull(), // Ví dụ: "07:30"
+    endTime: varchar("end_time", { length: 5 }).notNull(), // Ví dụ: "08:15"
+    isActive: boolean("is_active").default(true).notNull(),
+  },
+  (t) => [
+    unique("schedule_unique").on(
+      t.classId,
+      t.dayOfWeek,
+      t.startTime,
+      t.endTime
+    ),
+  ]
+);
 
 // Bảng trung gian để lưu mối quan hệ many-to-many giữa students và parents
 export const studentParents = pgTable(

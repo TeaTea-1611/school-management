@@ -9,7 +9,7 @@ import {
   teachers,
 } from "@/db/schema";
 import { zValidator } from "@hono/zod-validator";
-import { and, asc, desc, eq } from "drizzle-orm";
+import { and, asc, desc, eq, getTableColumns } from "drizzle-orm";
 import { Hono } from "hono";
 import { HTTPException } from "hono/http-exception";
 import { classSchema } from "../schema";
@@ -86,14 +86,12 @@ const app = new Hono()
         .where(eq(students.classId, id))
         .orderBy(asc(students.firstName));
 
+      const { ...schedulesColumns } = getTableColumns(schedules);
+
       const schedulesData = await db
         .select({
           schedule: {
-            id: schedules.id,
-            dayOfWeek: schedules.dayOfWeek,
-            startTime: schedules.startTime,
-            endTime: schedules.endTime,
-            isActive: schedules.isActive,
+            ...schedulesColumns,
           },
           subject: {
             id: subjects.id,

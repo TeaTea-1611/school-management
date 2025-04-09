@@ -5,6 +5,8 @@ import classrooms from "@/features/classrooms/server/route";
 import schoolYears from "@/features/school-years/server/route";
 import subjects from "@/features/subjects/server/route";
 import teachers from "@/features/teachers/server/route";
+import students from "@/features/students/server/route";
+import schedules from "@/features/schedules/server/route";
 
 // export const runtime = "edge";
 
@@ -13,6 +15,8 @@ const app = new Hono()
   .route("/classes", classes)
   .route("/classrooms", classrooms)
   .route("/school-years", schoolYears)
+  .route("/students", students)
+  .route("/schedules", schedules)
   .route("/teachers", teachers)
   .route("/subjects", subjects);
 

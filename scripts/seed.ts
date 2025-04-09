@@ -261,22 +261,31 @@ async function main() {
       { start: "16:15", end: "17:00" },
     ];
 
+    // Track used combinations to avoid duplicates
+    const usedCombinations = new Set<string>();
+
     // Create schedules for each class
     for (const classObj of insertedClasses) {
-      // Only create schedules for the active school year (2024-2025)
       const currentYearIndex = schoolYears.indexOf("2024-2025");
       if (classObj.schoolYearId !== insertedSchoolYears[currentYearIndex].id) {
         continue; // Skip inactive school years
       }
 
-      // For each day of the week
       for (const day of daysOfWeek) {
-        // For each time slot
         for (let i = 0; i < timeSlots.length; i++) {
-          // Skip some periods randomly
           if (faker.number.int({ min: 1, max: 10 }) <= 1) continue;
 
           const timeSlot = timeSlots[i];
+          const classroom =
+            insertedClassrooms[
+              Math.floor(Math.random() * insertedClassrooms.length)
+            ];
+          const combinationKey = `${classroom.id}-${day}-${timeSlot.start}-${timeSlot.end}`;
+
+          // Skip if this combination is already used
+          if (usedCombinations.has(combinationKey)) {
+            continue;
+          }
 
           schedules.push({
             classId: classObj.id,
@@ -288,16 +297,15 @@ async function main() {
               insertedTeachers[
                 Math.floor(Math.random() * insertedTeachers.length)
               ].id,
-            classroomId:
-              insertedClassrooms[
-                Math.floor(Math.random() * insertedClassrooms.length)
-              ].id,
+            classroomId: classroom.id,
             schoolYearId: classObj.schoolYearId,
             dayOfWeek: day,
             startTime: timeSlot.start,
             endTime: timeSlot.end,
             isActive: true,
           });
+
+          usedCombinations.add(combinationKey);
         }
       }
     }

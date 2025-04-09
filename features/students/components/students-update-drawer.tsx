@@ -1,16 +1,21 @@
 "use client";
 
 import { Button } from "@/components/ui/button";
+import { Calendar } from "@/components/ui/calendar";
 import {
   Form,
   FormControl,
-  FormDescription,
   FormField,
   FormItem,
   FormLabel,
   FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import {
   Select,
   SelectContent,
@@ -27,44 +32,55 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
-import { classes } from "@/db/schema";
+import { students } from "@/db/schema";
 import { client } from "@/lib/rpc";
+import { cn } from "@/lib/utils";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { format } from "date-fns";
 import { InferSelectModel } from "drizzle-orm";
 import { InferRequestType, InferResponseType } from "hono";
+import { CalendarIcon } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { z } from "zod";
-import { classSchema } from "../schema";
+import { studentSchema } from "../schema";
+import { useParams } from "next/navigation";
+
+type ClassesResponseType = InferResponseType<
+  (typeof client.api)["classes"]["$get"]
+>;
 
 type SchoolYearsResponseType = InferResponseType<
   (typeof client.api)["school-years"]["$get"]
 >;
-
-type ClasssResponseType = InferResponseType<
-  (typeof client.api)["teachers"]["$get"]
->;
-
 type ResponseType = InferResponseType<
-  (typeof client.api)["classes"][":id"]["$patch"]
+  (typeof client.api)["students"][":id"]["$patch"]
 >;
 
 type RequestType = InferRequestType<
-  (typeof client.api)["classes"][":id"]["$patch"]
+  (typeof client.api)["students"][":id"]["$patch"]
 >;
 
 interface Props {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  currentRow: InferSelectModel<typeof classes>;
+  currentRow: InferSelectModel<typeof students>;
 }
 
-export function ClassUpdateDrawer({ open, onOpenChange, currentRow }: Props) {
-  const form = useForm<z.infer<typeof classSchema>>({
-    resolver: zodResolver(classSchema),
+export function StudentsUpdateDrawer({
+  open,
+  onOpenChange,
+  currentRow,
+}: Props) {
+  const params = useParams<{ classId: string }>();
+  const classId = params.classId;
+
+  const form = useForm<z.infer<typeof studentSchema>>({
+    resolver: zodResolver(studentSchema),
     defaultValues: {
       ...currentRow,
+      parentId: currentRow.parentId ?? undefined,
     },
   });
 
@@ -72,7 +88,7 @@ export function ClassUpdateDrawer({ open, onOpenChange, currentRow }: Props) {
 
   const { mutate, isPending } = useMutation<ResponseType, Error, RequestType>({
     mutationFn: async ({ json, param }) => {
-      const response = await client.api["classes"][":id"]["$patch"]({
+      const response = await client.api["students"][":id"]["$patch"]({
         json,
         param,
       });
@@ -82,7 +98,10 @@ export function ClassUpdateDrawer({ open, onOpenChange, currentRow }: Props) {
       toast[data.success ? "success" : "error"](data.message);
 
       if (data.success) {
-        queryClient.invalidateQueries({ queryKey: ["classes"] });
+        queryClient.invalidateQueries({ queryKey: ["students"] });
+        if (classId) {
+          queryClient.invalidateQueries({ queryKey: ["class", classId] });
+        }
         onOpenChange(false);
         form.reset();
       }
@@ -92,25 +111,27 @@ export function ClassUpdateDrawer({ open, onOpenChange, currentRow }: Props) {
     },
   });
 
-  const { data: teachersData, isLoading: isLoadingClasss } =
-    useQuery<ClasssResponseType>({
-      queryKey: ["teachers"],
+  const { data: classesData, isLoading: isClassesDataLoading } =
+    useQuery<ClassesResponseType>({
+      queryKey: ["classes"],
       queryFn: async () => {
-        const response = await client.api["teachers"]["$get"]();
+        const response = await client.api["classes"]["$get"]();
         return await response.json();
       },
+      enabled: open,
     });
 
-  const { data: schoolYearsData, isLoading: isLoadingSchoolYears } =
+  const { data: schoolYearsData, isLoading: isSchoolYearDataLoading } =
     useQuery<SchoolYearsResponseType>({
       queryKey: ["school-years"],
       queryFn: async () => {
         const response = await client.api["school-years"]["$get"]();
         return await response.json();
       },
+      enabled: open,
     });
 
-  const onSubmit = (data: z.infer<typeof classSchema>) => {
+  const onSubmit = (data: z.infer<typeof studentSchema>) => {
     mutate({
       param: {
         id: String(currentRow.id),
@@ -118,14 +139,6 @@ export function ClassUpdateDrawer({ open, onOpenChange, currentRow }: Props) {
       json: data,
     });
   };
-
-  if (isLoadingSchoolYears || isLoadingClasss) {
-    return <div>Loading...</div>;
-  }
-
-  if (!schoolYearsData || !teachersData) {
-    return <div>Data not found</div>;
-  }
 
   return (
     <Sheet
@@ -140,24 +153,24 @@ export function ClassUpdateDrawer({ open, onOpenChange, currentRow }: Props) {
           <SheetTitle>Update Class</SheetTitle>
           <SheetDescription>Update the class details.</SheetDescription>
         </SheetHeader>
-        {isLoadingSchoolYears || isLoadingClasss ? (
+        {isClassesDataLoading || isSchoolYearDataLoading ? (
           <div>Loading...</div>
-        ) : !schoolYearsData || !teachersData ? (
+        ) : !schoolYearsData || !classesData ? (
           <div>Data not found</div>
         ) : (
           <>
             <Form {...form}>
               <form
-                id="class-update-form"
+                id="students-update-form"
                 onSubmit={form.handleSubmit(onSubmit)}
                 className="flex-1 space-y-5 p-4"
               >
                 <FormField
                   control={form.control}
-                  name="name"
+                  name="firstName"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Name</FormLabel>
+                      <FormLabel>First name</FormLabel>
                       <FormControl>
                         <Input placeholder="" {...field} />
                       </FormControl>
@@ -167,44 +180,100 @@ export function ClassUpdateDrawer({ open, onOpenChange, currentRow }: Props) {
                 />
                 <FormField
                   control={form.control}
-                  name="capacity"
+                  name="lastName"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Capacity</FormLabel>
+                      <FormLabel>Last name</FormLabel>
                       <FormControl>
-                        <Input type="number" {...field} />
+                        <Input placeholder="" {...field} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
                   )}
                 />
+
                 <FormField
                   control={form.control}
-                  name="supervisorId"
+                  name="gender"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Supervisor</FormLabel>
+                      <FormLabel>Gender</FormLabel>
                       <Select
                         onValueChange={field.onChange}
                         defaultValue={String(field.value)}
                       >
                         <FormControl>
                           <SelectTrigger className="w-full">
-                            <SelectValue placeholder="Select a supervisor" />
+                            <SelectValue />
                           </SelectTrigger>
                         </FormControl>
                         <SelectContent>
-                          {teachersData.teachers.map((item) => (
-                            <SelectItem key={item.id} value={String(item.id)}>
-                              {item.firstName} {item.lastName}
+                          {["male", "female"].map((item) => (
+                            <SelectItem key={item} value={item}>
+                              {item}
                             </SelectItem>
                           ))}
                         </SelectContent>
                       </Select>
-                      <FormDescription>
-                        This is the teacher who will be the supervisor for this
-                        class.
-                      </FormDescription>
+
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="dateOfBirth"
+                  render={({ field }) => (
+                    <FormItem className="flex flex-col">
+                      <FormLabel>Date of birth</FormLabel>
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <FormControl>
+                            <Button
+                              variant={"outline"}
+                              className={cn(
+                                "w-[240px] pl-3 text-left font-normal",
+                                !field.value && "text-muted-foreground"
+                              )}
+                            >
+                              {field.value ? (
+                                format(new Date(field.value), "PPP")
+                              ) : (
+                                <span>Pick a date</span>
+                              )}
+                              <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+                            </Button>
+                          </FormControl>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-auto p-0" align="start">
+                          <Calendar
+                            mode="single"
+                            selected={new Date(field.value)}
+                            onSelect={(day) => {
+                              field.onChange(
+                                day ? format(day, "yyyy-MM-dd") : ""
+                              );
+                            }}
+                            disabled={(date) =>
+                              date > new Date() || date < new Date("1900-01-01")
+                            }
+                            initialFocus
+                          />
+                        </PopoverContent>
+                      </Popover>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="address"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Address</FormLabel>
+                      <FormControl>
+                        <Input placeholder="" {...field} />
+                      </FormControl>
                       <FormMessage />
                     </FormItem>
                   )}
@@ -232,10 +301,33 @@ export function ClassUpdateDrawer({ open, onOpenChange, currentRow }: Props) {
                           ))}
                         </SelectContent>
                       </Select>
-                      <FormDescription>
-                        This is the school year for this class. For example,
-                        &quot;2023-2024&quot;, &quot;2024-2025&quot;, etc.
-                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="classId"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>class</FormLabel>
+                      <Select
+                        onValueChange={field.onChange}
+                        defaultValue={String(field.value)}
+                      >
+                        <FormControl>
+                          <SelectTrigger className="w-full">
+                            <SelectValue placeholder="Select a class" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          {classesData.classes.map((item) => (
+                            <SelectItem key={item.id} value={String(item.id)}>
+                              {item.name} ({item.schoolYear?.name})
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
                       <FormMessage />
                     </FormItem>
                   )}
@@ -247,7 +339,7 @@ export function ClassUpdateDrawer({ open, onOpenChange, currentRow }: Props) {
                 <Button variant="outline">Close</Button>
               </SheetClose>
               <Button
-                form="class-update-form"
+                form="students-update-form"
                 type="submit"
                 loading={isPending}
               >
